@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SQL Practice Playground</title>
+  <meta name="description" content="Offline-first SQL learning & execution platform powered by SQLite WebAssembly">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/editor.css">
+  <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+  <div id="app-container">
+    <!-- Top Navigation Header -->
+    <header id="top-navbar">
+      <div class="nav-brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+        </svg>
+        <div class="brand-titles">
+          <h1>SQL Playground</h1>
+          <span class="engine-badge">SQLite WASM Local</span>
+        </div>
+      </div>
+
+      <div class="nav-db-selector">
+        <label for="db-select" class="sr-only">Active Database</label>
+        <div class="select-wrapper">
+          <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7c0-2-1.5-3-3.5-3h-9C5.5 4 4 5 4 7z"></path>
+            <path d="M9 12h6"></path>
+          </svg>
+          <select id="db-select" title="Switch Database"></select>
+        </div>
+        <button id="btn-new-db" class="btn btn-secondary btn-icon" title="Create New Database">
+          <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>New DB</span>
+        </button>
+      </div>
+
+      <nav class="nav-tabs" role="tablist">
+        <button class="nav-tab active" data-view="editor-view" role="tab">Workspace</button>
+        <button class="nav-tab" data-view="dashboard-view" role="tab">Dashboard</button>
+        <button class="nav-tab" data-view="learn-view" role="tab">Learning Lab</button>
+        <button class="nav-tab" data-view="exercises-view" role="tab">Exercises</button>
+        <button class="nav-tab" data-view="visualizer-view" role="tab">ER Visualizer</button>
+        <button class="nav-tab" data-view="settings-view" role="tab">Settings</button>
+      </nav>
+
+      <div class="nav-actions">
+        <button id="btn-theme-toggle" class="btn btn-ghost btn-icon" title="Toggle Light/Dark Theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="app-body">
+      <!-- Sidebar: Database Explorer -->
+      <aside id="sidebar-explorer">
+        <div class="explorer-header">
+          <span class="explorer-title">Schema Explorer</span>
+          <div class="explorer-actions">
+            <button id="btn-refresh-schema" class="btn btn-ghost btn-xs" title="Refresh Schema">↻</button>
+            <button id="btn-db-manage" class="btn btn-ghost btn-xs" title="Database Actions">⋮</button>
+          </div>
+        </div>
+        <div id="explorer-tree" class="explorer-tree">
+          <!-- Tree Nodes populated dynamically -->
+        </div>
+        <div class="explorer-footer">
+          <button id="btn-quick-import" class="btn btn-outline btn-sm w-full">Import SQL / CSV</button>
+        </div>
+      </aside>
+
+      <!-- Workspace Area View -->
+      <section id="editor-view" class="view-panel active">
+        <!-- Editor Header Actions -->
+        <div class="editor-toolbar">
+          <div class="toolbar-group">
+            <button id="btn-run-query" class="btn btn-primary" title="Execute Query (Ctrl + Enter)">
+              <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              <span>Run (Ctrl+Enter)</span>
+            </button>
+            <button id="btn-run-selection" class="btn btn-secondary" title="Execute Selected Query">
+              <span>Run Selected</span>
+            </button>
+            <button id="btn-format-sql" class="btn btn-ghost" title="Format SQL query">Format</button>
+            <button id="btn-clear-editor" class="btn btn-ghost" title="Clear SQL text">Clear</button>
+          </div>
+          <div class="toolbar-group toolbar-right">
+            <span id="editor-cursor-pos" class="status-indicator">Line 1, Col 1</span>
+          </div>
+        </div>
+
+        <!-- Custom SQL Editor Component -->
+        <div class="sql-editor-container" id="editor-wrapper">
+          <div class="editor-gutter" id="editor-gutter">1</div>
+          <div class="editor-stage">
+            <textarea id="sql-code-input" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="-- Write SQLite queries here (e.g., SELECT * FROM STUDENTS;)..."></textarea>
+            <pre class="editor-highlight" id="editor-highlight" aria-hidden="true"><code></code></pre>
+          </div>
+          <!-- Keyword Autocomplete Popup -->
+          <ul id="autocomplete-popup" class="autocomplete-list" hidden></ul>
+        </div>
+
+        <!-- Splitter Handle -->
+        <div class="panel-resizer" id="vertical-resizer"></div>
+
+        <!-- Lower Section: Query Results & Messages Panel -->
+        <div class="results-container" id="results-panel">
+          <div class="results-header">
+            <div class="results-tabs">
+              <button class="res-tab active" data-res-tab="tab-grid">Results Grid</button>
+              <button class="res-tab" data-res-tab="tab-messages">Execution Log</button>
+              <button class="res-tab" data-res-tab="tab-history">Query History</button>
+            </div>
+            <div class="results-actions" id="grid-action-bar">
+              <input type="text" id="result-search-input" placeholder="Search in results..." class="input-xs">
+              <span id="result-meta-badge" class="meta-badge">0 rows</span>
+              <button id="btn-export-csv" class="btn btn-ghost btn-xs">Export CSV</button>
+              <button id="btn-copy-results" class="btn btn-ghost btn-xs">Copy Data</button>
+            </div>
+          </div>
+
+          <div class="results-content">
+            <!-- Table View -->
+            <div id="tab-grid" class="tab-pane active">
+              <div class="table-scroll-wrapper" id="table-scroll">
+                <table id="results-table" class="data-table">
+                  <thead id="results-thead"></thead>
+                  <tbody id="results-tbody"></tbody>
+                </table>
+                <div id="results-empty-state" class="empty-state">
+                  <p>Execute a SQL query to inspect resulting records.</p>
+                </div>
+              </div>
+              <div class="pagination-bar" id="pagination-bar" style="display:none;">
+                <span id="page-info">Page 1 of 1</span>
+                <div class="btn-group">
+                  <button id="btn-prev-page" class="btn btn-xs">&lt; Prev</button>
+                  <button id="btn-next-page" class="btn btn-xs">Next &gt;</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Execution Logs View -->
+            <div id="tab-messages" class="tab-pane">
+              <div id="execution-logs" class="logs-console"></div>
+            </div>
+
+            <!-- Query History View -->
+            <div id="tab-history" class="tab-pane">
+              <div class="history-controls">
+                <input type="text" id="history-search-input" placeholder="Filter history..." class="input-xs">
+                <button id="btn-clear-history" class="btn btn-outline btn-xs btn-danger">Clear History</button>
+              </div>
+              <div id="history-items-container" class="history-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Dashboard View -->
+      <section id="dashboard-view" class="view-panel" hidden>
+        <div class="view-content-wrapper">
+          <h2 class="view-title">Dashboard Overview</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-label">Active Database</span>
+              <strong class="stat-value" id="dash-active-db">-</strong>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Total Tables</span>
+              <strong class="stat-value" id="dash-total-tables">0</strong>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Queries Run</span>
+              <strong class="stat-value" id="dash-queries-count">0</strong>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Success Rate</span>
+              <strong class="stat-value text-success" id="dash-success-rate">100%</strong>
+            </div>
+          </div>
+
+          <div class="dashboard-sections-grid">
+            <div class="card">
+              <h3>Preset Sample Databases</h3>
+              <p>Load real-world, pre-configured relational databases ready for training.</p>
+              <div class="sample-db-buttons">
+                <button class="btn btn-outline btn-sample-db" data-sample="students">Student Management (4 tables)</button>
+                <button class="btn btn-outline btn-sample-db" data-sample="employees">Employee & Dept Management (4 tables)</button>
+                <button class="btn btn-outline btn-sample-db" data-sample="shop">Store & Orders Management (4 tables)</button>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Quick Navigators</h3>
+              <div class="quick-nav-actions">
+                <button class="btn btn-primary" onclick="app.switchView('editor-view')">Open SQL Editor</button>
+                <button class="btn btn-secondary" onclick="app.switchView('exercises-view')">Start Practice Exercises</button>
+                <button class="btn btn-outline" onclick="app.switchView('learn-view')">Read Learning Lab</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Learning Lab View -->
+      <section id="learn-view" class="view-panel" hidden>
+        <div class="split-learning-layout">
+          <aside class="learning-nav">
+            <h3 class="learning-nav-title">Topics Index</h3>
+            <ul id="learning-topic-list" class="topic-list"></ul>
+          </aside>
+          <article class="learning-body" id="learning-content-pane">
+            <!-- Injected via learning-lab.js -->
+          </article>
+        </div>
+      </section>
+
+      <!-- Interactive Practice Exercises View -->
+      <section id="exercises-view" class="view-panel" hidden>
+        <div class="split-exercises-layout">
+          <aside class="exercises-nav">
+            <div class="exercises-filter-bar">
+              <select id="exercise-level-filter">
+                <option value="all">All Difficulties</option>
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </div>
+            <ul id="exercise-items-list" class="exercise-list"></ul>
+          </aside>
+          <div class="exercise-work-area" id="exercise-work-pane">
+            <!-- Injected via exercises.js -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ER Visualizer View -->
+      <section id="visualizer-view" class="view-panel" hidden>
+        <div class="visualizer-container">
+          <div class="visualizer-toolbar">
+            <span class="visualizer-heading">Relational Schema Diagram</span>
+            <button id="btn-refresh-visualizer" class="btn btn-xs btn-outline">Redraw Diagram</button>
+          </div>
+          <div id="visualizer-canvas" class="visualizer-canvas">
+            <svg id="visualizer-svg" class="visualizer-svg-layer"></svg>
+            <div id="visualizer-tables-layer" class="visualizer-tables-layer"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings View -->
+      <section id="settings-view" class="view-panel" hidden>
+        <div class="view-content-wrapper settings-wrapper">
+          <h2 class="view-title">Settings & Storage</h2>
+          <div class="card settings-card">
+            <h3>Editor Preferences</h3>
+            <div class="form-group">
+              <label for="setting-font-size">Font Size (px)</label>
+              <input type="number" id="setting-font-size" min="10" max="28" value="14">
+            </div>
+            <div class="form-group">
+              <label for="setting-font-family">Font Family</label>
+              <select id="setting-font-family">
+                <option value="ui-monospace, monospace">System Monospace</option>
+                <option value="'Courier New', Courier, monospace">Courier New</option>
+                <option value="'Fira Code', monospace">Fira Code</option>
+                <option value="'Consolas', monospace">Consolas</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="card settings-card">
+            <h3>SQLite Compatibility & Notes</h3>
+            <p class="text-muted">
+              This playground runs an authentic local <strong>SQLite 3 WebAssembly engine</strong>. SQLite follows standard SQL-92 with additions, but differs from enterprise servers like Oracle or MS SQL:
+            </p>
+            <ul class="engine-differences-list">
+              <li>SQLite has dynamic data typing (<code>INTEGER</code>, <code>REAL</code>, <code>TEXT</code>, <code>BLOB</code>, <code>NUMERIC</code>).</li>
+              <li>Stored procedures (PL/SQL) and packages are not part of SQLite standard syntax.</li>
+              <li>Foreign key constraints require PRAGMA activation (handled automatically in this playground).</li>
+              <li>Common functions: <code>LENGTH()</code>, <code>SUBSTR()</code>, <code>ROUND()</code>, <code>DATETIME('now')</code> are native.</li>
+            </ul>
+          </div>
+
+          <div class="card settings-card">
+            <h3>IndexedDB Storage Management</h3>
+            <div class="form-group">
+              <label>Estimated Local Storage Usage:</label>
+              <span id="storage-quota-info">Calculating...</span>
+            </div>
+            <div class="btn-group-block">
+              <button id="btn-export-all-sql" class="btn btn-outline">Export Current DB as SQL Script</button>
+              <button id="btn-download-sqlite-binary" class="btn btn-outline">Download Active .sqlite Binary</button>
+              <button id="btn-reset-everything" class="btn btn-danger">Reset All Databases & Stored Data</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Global Import Modal -->
+    <div id="modal-import" class="modal-backdrop" hidden>
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>Import Data</h3>
+          <button class="btn-modal-close" onclick="importExport.closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="import-file-input">Select File (.sql, .csv)</label>
+            <input type="file" id="import-file-input" accept=".sql,.csv">
+          </div>
+          <div id="csv-options" hidden>
+            <div class="form-group">
+              <label for="csv-table-name">Destination Table Name</label>
+              <input type="text" id="csv-table-name" placeholder="imported_records">
+            </div>
+            <div class="csv-preview-container">
+              <h4>Preview:</h4>
+              <div id="csv-preview-table-wrapper"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="importExport.closeModal()">Cancel</button>
+          <button id="btn-confirm-import" class="btn btn-primary" disabled>Execute Import</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Core Scripts -->
+  <script src="vendor/sqlite/sql-wasm.js"></script>
+  <script src="js/database.js"></script>
+  <script src="js/sqlite-engine.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/results.js"></script>
+  <script src="js/query-executor.js"></script>
+  <script src="js/database-explorer.js"></script>
+  <script src="js/sample-databases.js"></script>
+  <script src="js/learning-lab.js"></script>
+  <script src="js/exercises.js"></script>
+  <script src="js/history.js"></script>
+  <script src="js/import-export.js"></script>
+  <script src="js/visualizer.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
